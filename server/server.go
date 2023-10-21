@@ -1,10 +1,10 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,9 +21,10 @@ func Init(isShow bool, p string) {
 }
 
 type ToolStruct struct {
-	Container *ToolStruct_sub1   `fmt:"container"`
-	Objects   []*ToolStruct_sub2 `fmt:"objects"`
-
+	Container  *ToolStruct_sub1   `fmt:"container"`
+	Objects    []*ToolStruct_sub2 `fmt:"objects"`
+	results    [][][]string
+	lock       *sync.Mutex
 	MAP_WIDTH  int
 	MAP_HEIGHT int
 	PIECE_NUM  int
@@ -71,65 +72,63 @@ func Run() {
 		gin.SetMode(gin.ReleaseMode)
 		r = gin.New()
 	}
-	r.GET("/calcOne", resolve)
-	r.POST("/calcOne", resolve)
-	r.GET("/calc", resolveAll)
-	r.POST("/calc", resolveAll)
+	r.POST("/calcOne", calcOne)
+	r.POST("/valid", valid)
+	r.POST("/calc", calc)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func resolve(c *gin.Context) {
+func calcOne(c *gin.Context) {
 	var req *ToolStruct
-	//if err := c.ShouldBind(req); err != nil {
-	//	c.AbortWithError(http.StatusBadRequest, err)
-	//	return
-	//}
-	err := json.Unmarshal([]byte(jsonObj), &req)
-	if err != nil {
-		fmt.Println("=====err", err)
+	ret := make(map[string]interface{})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ret["results"] = []struct{}{}
+		ret["errMsg"] = "请求参数错误:" + err.Error()
+		c.JSON(http.StatusOK, ret)
+		return
+	}
+	if req.Container == nil || len(req.Objects) == 0 {
+		ret["results"] = []struct{}{}
+		c.JSON(http.StatusOK, ret)
+		return
 	}
 
-	ret := make(map[string]interface{})
-	_, _, _, rs := resolveEasy()
+	_, _, _, rs := resolveEasy(req)
 	ret["results"] = [][][]string{rs}
 	c.JSON(http.StatusOK, ret)
 }
 
-func resolveAll(c *gin.Context) {
+func calc(c *gin.Context) {
 	var req *ToolStruct
-	//if err := c.ShouldBind(req); err != nil {
-	//	c.AbortWithError(http.StatusBadRequest, err)
-	//	return
-	//}
-	err := json.Unmarshal([]byte(jsonObj), &req)
-	if err != nil {
-		fmt.Println("=====err", err)
-	}
-
 	ret := make(map[string]interface{})
-	_, _, rs := searchAllRes(DpParse2(req), true, true)
-	ret["results"] = rs
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ret["results"] = []struct{}{}
+		ret["errMsg"] = "请求参数错误:" + err.Error()
+		c.JSON(http.StatusOK, ret)
+		return
+	}
+	if req.Container == nil || len(req.Objects) == 0 {
+		ret["results"] = []struct{}{}
+		c.JSON(http.StatusOK, ret)
+		return
+	}
+	//_, _, rs := searchAllRes(DpParse2(req), true, true)
+	list := DpParse3(req)
+	if len(list) == 0 {
+		list = [][][]string{}
+	}
+	ret["results"] = list
 	c.JSON(http.StatusOK, ret)
 }
 
 //func resolveEasy(month, day int) ([][constant.MAP_WIDTH]int, int64, string) {
-func resolveEasy() ([][]int, int64, string, [][]string) {
-	var req *ToolStruct
-	//if err := c.ShouldBind(req); err != nil {
-	//	c.AbortWithError(http.StatusBadRequest, err)
-	//	return
-	//}
-	err := json.Unmarshal([]byte(jsonObj), &req)
-	if err != nil {
-		fmt.Println("=====err", err)
-	}
+func resolveEasy(req *ToolStruct) ([][]int, int64, string, [][]string) {
 	req2 := DpParse2(req)
 	myMap := req2.originMap.DeepCopy(req.MAP_WIDTH)
 	start := time.Now()
 	m, count, rs := searchOneRes(req2, true, myMap, "")
-	fmt.Println("=======", m)
 	return m, count, time.Since(start).String(), rs
 }
 
@@ -257,7 +256,7 @@ func searchAllRes(req *ToolStruct, modeEasy, inServer bool) ([]*Map, int64, [][]
 			stackIndex--
 			resCount++
 			calendars = append(calendars, myMap.DeepCopy(req.MAP_WIDTH))
-			if inServer && len(calendars) == 1000 {
+			if inServer && len(calendars) == 6 {
 				break
 			}
 		} else {
@@ -267,7 +266,9 @@ func searchAllRes(req *ToolStruct, modeEasy, inServer bool) ([]*Map, int64, [][]
 	}
 
 	if show {
+		req.lock.Lock()
 		showAllRes(req, calendars, height)
+		req.lock.Unlock()
 		fmt.Printf("Down.Total search %d possibilities\n", backCount)
 	}
 	rs := AllRes(req, calendars, height)
@@ -400,51 +401,3 @@ func AllRes(req *ToolStruct, calendars []*Map, height int) [][][]string {
 //        }
 //    ]
 //}`
-
-var jsonObj = `{
-   "container": {
-       "row": 4,
-       "column": 4,
-       "blocks": [
-[0, 3],
-     [1, 3],
-           [2, 3],
-           [3, 3]
-       ]
-   },
-   "objects": [
-       {
-           "index": "A",
-           "weight": 2,
-           "shape": [
-               [1, 1],
-               [1, 1]
-           ]
-       },
-       {
-           "index": "B",
-           "weight": 2,
-           "shape": [
-               [1, 1],
-               [1, 0],
-               [1, 0]
-           ]
-       },
-       {
-           "index": "C",
-           "weight": 3,
-           "shape": [
-               [1, 0],
-               [1, 1]
-           ]
-       },
-       {
-           "index": "D",
-           "weight": 4,
-           "shape": [
-               [0, 1],
-               [0, 1]
-           ]
-       }
-   ]
-}`
