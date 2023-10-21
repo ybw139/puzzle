@@ -15,80 +15,6 @@ type DpStruct struct {
 	object     []int
 }
 
-func DpParse2(req *ToolStruct) *ToolStruct {
-	//1.计算总共有多少个点
-	totalPoint := req.Container.Column*req.Container.Row - len(req.Container.Blocks) // 总共有多少个点
-
-	volList := []int{}
-	weightList := []int{}
-	indexList := []int{}
-	var shapeIdName = map[int]string{}
-	//2.记录每个物体有几个点
-	for k, v := range req.Objects {
-		shapeIdName[k+1] = v.Index
-		total := 0
-		for _, item := range v.Shape {
-			for k1, val := range item {
-				if val == 1 {
-					total++
-					item[k1] = k + 1
-				}
-			}
-		}
-		v.Vol = total
-		volList = append(volList, total)
-		weightList = append(weightList, v.Weight)
-		indexList = append(indexList, k)
-	}
-	req.ShapeIdName = shapeIdName
-
-	req.MAP_WIDTH = req.Container.Column
-	req.MAP_HEIGHT = req.Container.Row
-
-	// 物品个数
-	num := len(req.Objects)
-	sol := Pack(indexList, weightList, volList, totalPoint)
-
-	maxValue := sol.res[len(sol.res)-1].value
-	var selected [][]bool
-	for i := len(sol.res) - 1; i >= 0; i-- {
-		if sol.res[i].value == maxValue {
-			maxValue = sol.res[i].value
-			selected = append(selected, sol.res[i].selected)
-		} else {
-			maxValue = sol.res[i].value
-			break
-		}
-	}
-
-	if show {
-		fmt.Println("物品数量：", num, "共有多少点：", totalPoint)
-		fmt.Println("最大重量", sol.res[len(sol.res)-1].value)
-		//fmt.Println("选中的节点", Objects)
-		fmt.Println("选中组合", len(selected))
-		fmt.Println("下次要求的值", maxValue)
-	}
-
-	// 选中了哪些物品
-	for _, v := range selected {
-		var Objects []*ToolStruct_sub2
-		for k1, v1 := range v {
-			if v1 {
-				Objects = append(Objects, req.Objects[k1])
-			}
-		}
-		req.PIECE_NUM = len(Objects)
-		// 4.选出有哪些图形
-		req2 := *req
-		req2.Objects = Objects
-		InitShape(&req2)
-		return &req2
-	}
-
-	return nil
-
-}
-
 func DpParse3(req *ToolStruct) [][][]string {
 	//1.计算总共有多少个点
 	totalPoint := req.Container.Column*req.Container.Row - len(req.Container.Blocks) // 总共有多少个点
@@ -174,6 +100,88 @@ func DpParse3(req *ToolStruct) [][][]string {
 		}
 	}
 	return nil
+}
+
+func DpParse4(req *ToolStruct) (int, [][][]string) {
+	//1.计算总共有多少个点
+	totalPoint := req.Container.Column*req.Container.Row - len(req.Container.Blocks) // 总共有多少个点
+
+	volList := []int{}
+	weightList := []int{}
+	indexList := []int{}
+	var shapeIdName = map[int]string{}
+	//2.记录每个物体有几个点
+	for k, v := range req.Objects {
+		shapeIdName[k+1] = v.Index
+		total := 0
+		for _, item := range v.Shape {
+			for k1, val := range item {
+				if val == 1 {
+					total++
+					item[k1] = k + 1
+				}
+			}
+		}
+		v.Vol = total
+		volList = append(volList, total)
+		weightList = append(weightList, v.Weight)
+		indexList = append(indexList, k)
+	}
+	req.ShapeIdName = shapeIdName
+
+	req.MAP_WIDTH = req.Container.Column
+	req.MAP_HEIGHT = req.Container.Row
+
+	// 物品个数
+	num := len(req.Objects)
+	sol := Pack(indexList, weightList, volList, totalPoint)
+
+	var ret [][][]string
+	var selected [][]bool
+	maxValue := sol.res[len(sol.res)-1].value
+	req.lock = &sync.Mutex{}
+	for i := len(sol.res) - 1; i >= 0; i-- {
+		if sol.res[i].value == maxValue {
+			maxValue = sol.res[i].value
+			selected = append(selected, sol.res[i].selected)
+		} else {
+			currValue := maxValue
+			maxValue = sol.res[i].value
+			if show {
+				fmt.Println("物品数量：", num, "共有多少点：", totalPoint)
+				fmt.Println("最大重量", sol.res[len(sol.res)-1].value)
+				//fmt.Println("选中的节点", Objects)
+				fmt.Println("选中组合", len(selected))
+				fmt.Println("下次要求的值", maxValue)
+			}
+			//wg := &sync.WaitGroup{}
+			// 选中了哪些物品
+			for _, v := range selected {
+				//wg.Add(1)
+				v0 := v
+
+				//defer wg.Done()
+				var Objects []*ToolStruct_sub2
+				for k1, v1 := range v0 {
+					if v1 {
+						Objects = append(Objects, req.Objects[k1])
+					}
+				}
+				req.PIECE_NUM = len(Objects)
+				// 4.选出有哪些图形
+				req2 := *req
+				req2.Objects = Objects
+				InitShape(&req2)
+				_, _, _, rs := resolveEasy(&req2)
+				if len(rs) > 0 {
+					ret = append(ret, rs)
+					return currValue, ret
+				}
+			}
+			selected = [][]bool{}
+		}
+	}
+	return 0, nil
 }
 
 // 背包问题的解结构体

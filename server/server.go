@@ -23,7 +23,7 @@ func Init(isShow bool, p string) {
 type ToolStruct struct {
 	Container  *ToolStruct_sub1   `fmt:"container"`
 	Objects    []*ToolStruct_sub2 `fmt:"objects"`
-	results    [][][]string
+	Results    [][][]string       `fmt:"results"`
 	lock       *sync.Mutex
 	MAP_WIDTH  int
 	MAP_HEIGHT int
@@ -56,7 +56,7 @@ func InitShape(req *ToolStruct) {
 		//shapeIdName[k+1] = v.Index
 		h := len(v.Shape)    // height
 		w := len(v.Shape[0]) // 宽
-		req.puzzles[k].InitShape(NewShape(h, w, v.Shape))
+		req.puzzles[k].InitShape(NewShape(h, w, v.Shape), v.Index)
 	}
 	//req.ShapeIdName = shapeIdName
 	req.originMap = NewMap(req, true)
@@ -94,9 +94,14 @@ func calcOne(c *gin.Context) {
 		c.JSON(http.StatusOK, ret)
 		return
 	}
-
-	_, _, _, rs := resolveEasy(req)
-	ret["results"] = [][][]string{rs}
+	value, list := DpParse4(req)
+	if len(list) == 0 {
+		list = [][][]string{}
+	}
+	ret["results"] = list
+	ret["value"] = value
+	//_, _, _, rs := resolveEasy(req)
+	//ret["results"] = [][][]string{rs}
 	c.JSON(http.StatusOK, ret)
 }
 
@@ -125,10 +130,10 @@ func calc(c *gin.Context) {
 
 //func resolveEasy(month, day int) ([][constant.MAP_WIDTH]int, int64, string) {
 func resolveEasy(req *ToolStruct) ([][]int, int64, string, [][]string) {
-	req2 := DpParse2(req)
-	myMap := req2.originMap.DeepCopy(req.MAP_WIDTH)
+	//req2 := DpParse2(req)
+	myMap := req.originMap.DeepCopy(req.MAP_WIDTH)
 	start := time.Now()
-	m, count, rs := searchOneRes(req2, true, myMap, "")
+	m, count, rs := searchOneRes(req, true, myMap, "")
 	return m, count, time.Since(start).String(), rs
 }
 
@@ -256,7 +261,7 @@ func searchAllRes(req *ToolStruct, modeEasy, inServer bool) ([]*Map, int64, [][]
 			stackIndex--
 			resCount++
 			calendars = append(calendars, myMap.DeepCopy(req.MAP_WIDTH))
-			if inServer && len(calendars) == 6 {
+			if inServer && len(calendars) == 100 {
 				break
 			}
 		} else {

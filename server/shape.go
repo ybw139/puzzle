@@ -190,11 +190,13 @@ type Puzzle struct {
 	X, Y       *int //当前在图形中，左上角右上角坐标
 	ShapeIndex int  // 当前拼图的形状索引
 	allShapes  [PUZZLE_NUM]Shape
+	index      string
 }
 
-func (p *Puzzle) InitShape(origin Shape) {
+func (p *Puzzle) InitShape(origin Shape, index string) {
 	//给定初始形状，生成8个旋转、翻转形状，相同的不保存
 	p.allShapes[0] = origin
+	p.index = index
 	shapeNum := 1
 	tempShape := origin.Flip()
 	if !tempShape.Equal(origin) {

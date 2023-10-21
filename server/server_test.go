@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ var jsonObj = `{
        "row": 4,
        "column": 4,
        "blocks": [
-[0, 3],
+
      [1, 3],
            [2, 3],
            [3, 3]
@@ -116,7 +117,48 @@ func Test_json(t *testing.T) {
 	fmt.Println(time.Since(start))
 }
 
-func abc() {
+func Test_obj_shape(t *testing.T) {
+	l := [][]int{{0, 1}, {0, 1}}
+	var x []int
+	var y []int
+	for k, v := range l {
+		//m[k] = make([]int, len(v))
+		for k1, v1 := range v {
+			if v1 == 1 {
+				//m[k][k1] = 1
+				y = append(y, k)
+				x = append(x, k1)
+				fmt.Println(k, k1)
+			}
+		}
+	}
+	sort.Sort(sort.IntSlice(x))
+	sort.Sort(sort.IntSlice(y))
+	minX := x[0]
+	maxX := x[len(x)-1]
+	minY := y[0]
+	maxY := y[len(y)-1]
+	width := maxX - minX + 1
+	height := maxY - minY + 1
+	fmt.Println(minX, maxX, minY, maxY, width, height)
+	var point = make([][]int, height)
+	indexy := minY
+	for i := 0; i < height; i++ {
+		point[i] = l[indexy][minX : minX+width]
+		indexy++
+	}
+	fmt.Println(point)
+}
+
+func Test_abc(t *testing.T) {
+	type Shape struct {
+		Height  int
+		Width   int
+		MyShape *[][]int
+	}
+	a := Shape{1, 2, &[][]int{{1, 2}}}
+	b := Shape{1, 2, &[][]int{{1, 2}}}
+	fmt.Println(reflect.DeepEqual(a, b)) //false
 
 }
 
